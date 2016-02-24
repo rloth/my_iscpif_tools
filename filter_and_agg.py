@@ -21,7 +21,6 @@ from glob     import glob
 from lxml     import etree
 
 DEFAULT_MASTER_GEXF_DIR="/var/www/COP21/data/ClimateChange"
-DEFAULT_MASTER_LIST_PATH="master_list.nodelabels.txt"
 DEFAULT_INPUT_JSON_PATH="Climate_Change_Weekly_new.json"
 
 def retrieve_gexf_node_labels(my_path):
@@ -112,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('-l',
         metavar='pathto/termlist',
         help='alternative to -d : a path with a prepared master term list (a txt file with one term per line)',
-        default=DEFAULT_MASTER_LIST_PATH,
+        default=None,
         required=False,
         action='store')
    
@@ -124,8 +123,10 @@ if __name__ == '__main__':
 
     # 1) the dict of terms to keep
     filter_dict = {}
-    
-    if args.d:
+
+    if args.l:
+        filter_dict = read_master_list(args.l)
+    else:
         gexf_paths = glob(args.d+"/*.gexf")
         if not len(gexf_paths):
             print("no files matching '*.gexf' were found under in directory '%s'" 
@@ -143,15 +144,15 @@ if __name__ == '__main__':
                 # update our dict
                 filter_dict = add_list_to_dict(node_labels, filter_dict)
                 
-                print("added %i labels from gexf file '%s'"
+                print("found %i labels in gexf file '%s'"
                         % (n, gexf_path),
                         file = stderr
                     )
-                
 
-    elif args.l:
-        filter_dict = read_master_list(args.l)
-
+    print('master filter list has a total of %i unique terms' 
+            % len(filter_dict),
+            file=stderr
+          )
 
     # 2) loop the input json
     aggs_f = open(args.i, 'r')
@@ -168,7 +169,14 @@ if __name__ == '__main__':
         }
     }
 
+    print("filtering input json '%s'" % args.i, file = stderr)
+
+    # counters
+    count = {'t_buckets': 0, 'kw_buckets_in': 0, 'kw_buckets_out': 0 }
+
     for time_bucket in aggs_json['aggregations']['weekly']['buckets']:
+        count['t_buckets'] += 1
+
         # initialize our copy
         tb_copy = TimeBucket(
                 time_bucket['key_as_string'],
@@ -177,6 +185,8 @@ if __name__ == '__main__':
 
         # now the keywords
         for kw in time_bucket['keywords']['buckets']:
+            count['kw_buckets_in'] += 1
+            
             # print(kw)
             this_term = kw['key']
             
@@ -193,12 +203,26 @@ if __name__ == '__main__':
                 # we add to new total
                 tb_copy.dc += this_count
 
+                # and keep track
+                count['kw_buckets_out'] += 1
+
         # save the time bucket
         filtered['aggregations']['weekly']['buckets'].append(
             tb_copy.as_dict()
         )
     
     aggs_f.close()
-    
+
+    # fyi
+    print ('kept %i/%i "keyword buckets" across %i "time buckets"'
+            % (
+                count['kw_buckets_out'],
+                count['kw_buckets_in'],
+                count['t_buckets']
+            ),
+            file = stderr
+        )
+
     # 3) output on STDOUT
-    print(dumps(filtered, "output.json", indent=1))
+    print("writing output json to STDOUT", file = stderr)
+    print(dumps(filtered, indent=1))
