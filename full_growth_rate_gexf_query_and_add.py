@@ -5,7 +5,7 @@ Read a gexf and query each node label with an API to create a new node attribute
 __author__    = "Romain Loth"
 __copyright__ = "Copyright 2017 ISCPIF-CNRS"
 __license__   = "LGPL"
-__version__   = "0.5"
+__version__   = "1"
 __email__     = "romain.loth@iscpif.fr"
 __status__    = "dev"
 
@@ -20,6 +20,8 @@ from time      import sleep
 DEFAULT_API_URL = "https://api.iscpif.fr/v2/pub/politic/france/twitter/histogram"
 DEFAULT_API_INTERVAL = "day"
 DEFAULT_ATTRIBUTE = "growth_rate"
+
+PARAM_AGE_THRESHOLD = 10
 
 # prepare corresponding namespace
 MY_NS = {"g":"http://www.gexf.net/1.3"}
@@ -129,7 +131,7 @@ def transform_age(label_counts, timescale):
 
         for timebucket in timescale:
             if timebucket in all_counts[label]:
-                if all_counts[label][timebucket] > 0:
+                if all_counts[label][timebucket] > PARAM_AGE_THRESHOLD:
                     # we use timebuckets_census to retrieve also epoch keys
                     apparition_time = timebuckets_census[timebucket]
                     break
