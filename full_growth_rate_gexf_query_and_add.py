@@ -21,6 +21,8 @@ DEFAULT_API_URL = "https://api.iscpif.fr/v2/pub/politic/france/twitter/histogram
 DEFAULT_API_INTERVAL = "day"
 DEFAULT_ATTRIBUTE = "growth_rate"
 
+PARAM_MAX_RETRIES = 5
+
 PARAM_AGE_THRESHOLD = 10
 
 # prepare corresponding namespace
@@ -209,10 +211,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--verbose',
         default=False,
-        type = bool,
         help='more runtime logs',
         required=False,
-        action='store')
+        action='store_true')
 
     # parser.add_argument('--normalize',
     #     default=False,
@@ -252,6 +253,8 @@ if __name__ == '__main__':
 
         if len(expression):
 
+            result_buckets = None
+
             if args.verbose:
                 print('===== expression:"%s" =====' % expression, file=stderr)
 
@@ -259,7 +262,8 @@ if __name__ == '__main__':
             api_args['q'] = expression
             resp = get(args.url, params=api_args)
 
-            print('queryied url:', resp.url, file=stderr)
+            if args.verbose:
+                print('queryied url:', resp.url, file=stderr)
 
             try:
                 result_buckets = resp.json()
@@ -278,13 +282,18 @@ if __name__ == '__main__':
                 # 'took': 506,
                 # 'total': 20538040}}
             except:
-                # wait two seconds and retry
-                sleep(2)
-                try:
-                    print("retrying query for '%s'" % expression, file=stderr)
-                    resp = get(args.url, params=api_args)
-                    result_buckets = resp.json()
-                except:
+                nretries = 0
+                while result_buckets is None and nretries < PARAM_MAX_RETRIES:
+                    # wait two seconds and retry
+                    sleep(2)
+                    nretries += 1
+                    print("retrying %i query for '%s'" % (nretries, expression), file=stderr)
+                    try:
+                        resp = get(args.url, params=api_args)
+                        result_buckets = resp.json()
+                    except:
+                        pass
+                if result_buckets is None:
                     print("GIVING UP query for '%s'" % expression, file=stderr)
                     result_buckets = {'hits': []}
 
